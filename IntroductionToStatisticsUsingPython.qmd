@@ -1,0 +1,1815 @@
+---
+title: INTRODUCTION TO STATISTICS USING PYTHON
+subtitle: Learn to use Python for Statistical Analysis
+author:
+  - name: Dr Juan H Klopper
+    affiliation: The Department of Biostatistics and Bioinformatics
+title-block-banner: true
+callout-icon: false
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-title: Contents
+    html-math-method: katex
+    code-line-numbers: true
+    embed-resources: true
+    self-contained-math: true
+    code-copy: true
+    fig-cap-location: top
+    theme: sandstone
+---
+
+![](GWU_Logo_Horizontal.png)
+
+## Introduction
+
+In this open textbook, created as a Quarto document, we consider the use of Python to conduct the majority of the statistical tests covered in a postgraduate introduction to biostatistics course.
+
+At The George Washington University (GWU), Milken Institute School of Public Health, our postgraduate introduction to biostatistics course is __Biostatistical Applications for Public Health__, PubH 6002. Many students in the School take PubH 6002, as it is a core requirement for programs including Biostatistics, Bioinformatics, and Public Health, among others.
+
+The Biostatistical Applications for Public Health course develops the intuition behind the most commonly used statistical tests. Students are encouraged to understand the equations, and to do the majority of the calculations by hand.
+
+When I teach this course, I do provide the students with supplemental documentation showing how to perform the tests using the R language for statistical computing and similarly how to use Microsoft® Excel®. They are not obliged to use any specific language or application, though. Since students must show all their calculations during assessment, a computer language only serves the purpose of verifying their own results. The point is to understand the reasoning behind the equations, and hence the emphasis is not on a computer language.
+
+With the supplemental documentation using R, I thought it a good idea to do something similar in Python. This notebook is then a showcase of how to perform the statistical analysis covered in PubH 6002, but in Python. As such, this notebook does not attempt to teach a full biostatistics course. Instead, I assume a basic understanding of biostatistcis and concentrate on the use of Python. I do take the time to explain the major topics, though. The most often used equations are also included.
+
+It is important to note that some knowledge of Python is required as well. At GWU, we have a postgraduate course, Introduction to Python for Public Health Research, PubH 6852. If you have never considered this course, please do so. Python is the leading language in data science and data analysis.
+
+In the notebook, we will cover the topics listed in the Contents section that you see on the top-right of this page. We will generate simulated data and import data in comma-separated values (CSV) files, to show as much of the power and ease of use of Python as possible.
+
+## Packages
+
+As with R, we need to make use of a variety of packages to conduct all of our analysis. The first three packages are the stats module in the scipy package for statistical tests, the pandas package for data import and wrangling, and the numpy package for numerical computations and random value generation.
+
+```{python}
+from scipy import stats
+import pandas
+import numpy
+```
+
+The statmodels package contains many functions for statistical analysis in a variety of modules. We will use one of the functions in the proportions submodule to conduct a one sample _z_ test for proportions.
+
+```{python}
+from statsmodels.stats.proportion import proportions_ztest
+```
+
+The three measures of association, risk difference, risk ratio, and odds ratio, can be calculated using functions from the zepid package. We can also calculate sensitivity, specificity, positive- and negative predictive values using this package.
+
+```{python}
+from zepid import RiskDifference, RiskRatio, OddsRatio
+from zepid.calc import sensitivity, specificity, ppv_converter, npv_converter
+```
+
+Modeling is a very important topic in biostatistics. Functions and modules in the statsmodels package are used to generate a variety of models.
+
+```{python}
+from statsmodels.formula.api import ols, logit
+from statsmodels.api import add_constant
+from statsmodels.api import stats as sm_stats # Namespace abbreviation naming convention not to override stats from scipy
+```
+
+_Post-hoc_ analysis is used after we reject the null hypothesis that all the means of three or more groups as equal. We will use the pingouin package for _post-hoc_ tests. The package can be used to conduct a variety of statistical test instead of the scipy stats module.
+
+```{python}
+import pingouin
+```
+
+We will generate interactive plots using the plotly package.
+
+```{python}
+from plotly import express, graph_objects, io
+from plotly import graph_objects
+io.templates.default = 'gridon' # Setting the default plotting style
+```
+
+Matplotlib is the most established plotting package in Python. If you would like a comprehensive overview of using Matplotlib, watch my video [HERE](https://www.youtube.com/watch?v=4_bIDExi4J4).
+
+## Specificity, sensitivity, positive predictive value, and negative predictive value
+
+We will touch on concepts of probability where we make use of joint, marginal, and conditional probabilities throughout this notebook. We start by considering the concepts of specificity, sensitivity, positive predictive value (PPV), and negative predictive value (NPV).
+
+As illustrative example, we consider the analysis of a new diagnostic test. @tbl-newtest shows the results where the test is used for a disease with a prevalence in the population of $5\%$. TP indicates a true positive, where a patient has the disease and the test return a positive result. TN indicates a true negative, where the test return a negative result in a patient who does not have the disease. FP indicates a false positive. This is where the patient does not have the disease, but the test returns a true result. Lastly, we have FN, a false negative, where the patient does have the disease, but the test returns a negative result. A total of $33+8+4+102=147$ tests were concluded.
+
+|                      | Disease present | Disease absent |
+|:---------------------|:----------------|:---------------|
+| Test result positive | TP $=33$        | FP=$8$         |
+| Test result negative | FN $=4$         | TN $=102$      |
+
+: Results of a new diagnostic test {#tbl-newtest}
+
+Sensitivity is the proportions of cases where the test returns a positive result, given that the disease is present written as the conditional probability $P \left( + \, \vert \, D \right)$, shown in @eq-sensitivity, where $+$ indicates a positive test result and $D$ is the presence of disease.
+
+$$
+\begin{align}
+&\text{sensitivity} = P \left( + \, \vert \, D \right) = \frac{TP}{TP + FN} \\ \\
+&\text{sensitivity} = \frac{33}{33+4} \approx 0.892
+\end{align}
+$$ {#eq-sensitivity}
+
+The `sensitivity` function from the calc module of the zepid package can calculate sensitivity. the arguments are `detected` for the number of true positives, `cases`, for the total number of cases with the disease (TP+FN), `alpha` for the level of significance to calculate two-sided Wals confidence intervals, as `confinit` that can be set to `'wald'` or `'hypergeometric'` for Wald or hypergeometric confidence intervals. The function returns the sensitivity, the $95\%$ confidence intervals for the sensitivity, and the standard error.
+
+```{python}
+sensitivity(
+  detected=33,
+  cases=33 + 4,
+  alpha=0.05,
+  confint='wald'
+)
+```
+
+We state that the test can detect about $89.2\%$ of cases where the disease is present.
+
+Specificity is the proportions of cases where the test returns a negative result, given that the disease is not present written as the conditional probability $P \left( - \, \vert \bar{D} \right)$, shown in @eq-specificity, where $-$ is a negative test result and $\bar{D}$ is the absence of disease.
+
+$$
+\begin{align}
+&\text{specificity} = P \left( - \, \vert \bar{D} \right) = \frac{TN}{TN + FP} \\ \\
+&\text{specificity} = \frac{102}{102+8} \approx 0.927
+&
+\end{align}
+$$ {#eq-specificity}
+
+The `specificity` function from the calc module of the zepid package can calculate specificity. The first argument, `detected`, is the number of false positives. The `noncases` agument is the number of cases without the disease (FP+TN). The `alpha` argument is the $\alpha$ values used to calculate two-sided Wald confidence intervals for the specificity. The `confint` argument can either be `'wald'` (the default) for a Wald or `'hypergeometric'` for a hypergeometric confidence interval.The function return the specificity, the $95\%$ confidence intervals for the specificity and the standard error.
+
+```{python}
+specificity(detected=8, noncases=8+102, alpha=0.05, confint='wald')
+```
+
+We state that the test can detect about $92.7\%$ of cases where the disease is absent.
+
+PPV calculates the probability that the disease is present in the case that the test returns a positive result written as the conditional probability $P \left( D \, \vert \, + \right)$. The equation is based on Bayes' formula and incorporates the prevalence, $q$ of the disease, shown in @eq-ppv, where `sens` is the sensitivity and `spec` is the specificity.
+
+$$
+\begin{align}
+&\text{PPV} = P(D \vert +) = \frac{\text{sens} \times q}{\left( \text{sens} \times q \right) + \left( 1 - \text{spec} \right)  \times \left( 1 - q \right)} \\ \\
+&\text{PPV} = \frac{0.89189 \times 0.05}{(0.89189 \times 0.05) + (1-0.92727) \times (1-0.05)} \approx 0.048
+\end{align}
+$$ {#eq-ppv}
+
+The `ppv_converter` function calculates the PPV. We pass the values for the sensitivity, the specificity, and the prevalence to the function.
+
+```{python}
+ppv_converter(0.89189, 0.92727, 0.05)
+```
+
+We state that a person whose test returns a positive result, has about a $39.2\%$ probability of actually having the disease.
+
+NPV calculates the probability that the disease is absent in the case that the test returns a negative result written as the conditional probability $P \left( \bar{D} \, \vert \, - \right)$. The equation is also based on Bayes' formula and incorporates the prevalence, $q$ of the disease, shown in @eq-npv, where `sens` is the sensitivity and `spec` is the specificity.
+
+$$
+\begin{align}
+&\text{NPV} = P(\overline{D} \vert -) =  \frac{\text{spec} \times (1 - q)}{\text{spec} \times (1 - q) + (( 1 - \text{sens}) \times q)} \\ \\
+&\text{NPV} = \frac{0.92727 \times (1 - 0.05)}{(0.92727 \times (1 - 0.05)) + ((1 - 0.89189) \times 0.05)}
+\end{align}
+$$ {#eq-npv}
+
+The `npv_converter` function calculates the NPV. We pass the values for the sensitivity, the specificity, and the prevalence to the function.
+
+```{python}
+npv_converter(0.89189, 0.92727, 0.05)
+```
+
+We state that a person whose test returns a pnegative result, has about a $99.4\%$ probability of not having the disease.
+
+## Exploratory data analysis
+
+Statistical data analysis starts with exploratory data analysis (EDA). Here we summarize and visualize the data. This step helps us understand the data and discover potential errors such as missing data and outliers.
+
+### Generating simulated data
+
+For this section on EDA, we generate simulated data. We create a pandas dataframe object for two variable, `Group` and `Creatinine`. The data simulates two exposure groups, _Placebo_ and _Treatment_, simulating a study in which participants received either a placebo or an active intervention repsectively.
+
+The outcome measures their serum creatinine levels.
+
+In the code, we make use of the `repeat` function in the numpy package to repeat the strings `'Placebo'` and `'Treatment'` each $39$ and $41$ times respectively.
+
+We then create two separate arrays of the appropriate length for the serum creatinine levels. In the placebo group, we take the values from a normal distribution with $\mu=100$ and $\sigma=10$. For the intervention group, we create $14$ serum creatinine values taken from a normal distribution with $\mu=95$ and $\sigma=12$.
+
+To make the pseudo-random number generation reprodicuble, we use the `seed` function from the random module of the numpy package. We seed the generator with the interger $12$.
+
+Finaly, we add the random values to two columns of a pandas dataframe object, assigned to the variable `project_1_data`. Note the use of the numpy `concat` function to concanetante the two arrays containing data for the `Group` variable and the two arrays for the `Creatinine` variable.
+
+```{python}
+placebo_n = 39
+treatment_n = 41
+
+numpy.random.seed(12)
+
+placebo_group = numpy.repeat(
+  'Placebo',
+  placebo_n
+)
+placebo_serum_creatinine = numpy.round(
+  numpy.random.normal(
+    loc=100,
+    scale=10,
+    size=placebo_n
+  ),
+  0
+)
+
+treatment_group = numpy.repeat(
+  'Treatment',
+  treatment_n
+)
+
+treatment_serum_creatinine = numpy.round(
+  numpy.random.normal(
+    loc=95,
+    scale=12,
+    size=treatment_n
+  )
+)
+
+project_1_data = pandas.DataFrame(
+  {
+    'Group':numpy.concatenate([placebo_group, treatment_group]),
+    'Creatinine':numpy.concatenate([placebo_serum_creatinine, treatment_serum_creatinine])
+  }
+)
+```
+
+We view the first five observations for the dataframe object below.
+
+```{python}
+project_1_data[:5] # Use indexing short-had to display rows 0 through 4
+```
+
+Now that we have some data, we can start with EDA.
+
+### Measures of central tendency
+
+Measures of central tendency calculate a value for a variable that is representative of all the values for that variable.
+
+The mean is calculated for a continuous variable, $\bar{X}$, is shown in @eq-mean for the random variable, $X$, where $n$ is the sample size and $x_{i}$ is the variable value for each observation.
+
+$$
+\bar{X} = \frac{\sum_{i=1}^{n} x_{i}}{n}
+$$ {#eq-mean}
+
+There are many ways to calculate the mean in Python. Since we do not have illegal characters such a s spaces in the variable (column) name `Creatinine`, we can use dot notation, `project_1_data.Creatine`. This syntax will return a pandas series object, containing the values of the indicated column. The `mean` method calculates the mean.
+
+Note that in this notebook, we refer to a method as a function that is applied to an object. The code, `project_1_data.Creatine`, returns a series object, and we apply the `mean` function to it as a method. Note the use of parentheses to indicate that `mean` is a method.
+
+```{python}
+project_1_data.Creatinine.mean()
+```
+
+The `mean` function from the numpy library caluclates the mean of a numpy array object. To create an array object, we add the `to_numpy` method to the pandas series object that is returend by code `proejct_1_data.Creatine`. The resulting numpy array object is passed as an argument to the numpy `mean` function,. 
+
+```{python}
+numpy.mean(project_1_data.Creatinine.to_numpy())
+```
+
+After generating a pandas series object, we can use the `median` method to calculate the median. Alternatively, we could also create a numpy array object and use the numpy `median` function. The median is used when data for a continuous variable is skewed. We order the values in ascending (or descending) order, and select or calculate that value for whcih half of the values will be less than and half will me more than the median.
+
+```{python}
+project_1_data.Creatinine.median()
+```
+
+The mode is used for categorical data type variables. The mode is then the value that occurs most commonly. We can show the unique elements of a categorical variable and show the frequency of each by using the `value_counts` method for a pandas series object. We do so below for the `Group` variable using the `project_1_data.Group` syntax.
+
+```{python}
+project_1_data.Group.value_counts()
+```
+
+We generated the data ourselves and know that _Treatment_ is the mode for the `Group` variable. Note that more than one level (class) of a categorical can have an equal highest ferquency. In this case, we refer to the variable as multi-modal.
+
+Comparative summary statistics calculate statistics for a variable after grouping by the levels (classes) of a categorical variable. Below, we use the `groupby` method and pass the string `'Group'` as arguemnt. The dataframe object will be split along all the unique levels of the `Group` variable. The variable that we are concerned with is passed as an index in square brackets. Then we use the `mean` method.
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].mean()
+```
+
+The results show the mean of the `Creatinine` variable for each level of the `Group` variable.
+
+Since the variable column name does not contain illegal characters, we can also use dot notation.
+
+```{python}
+project_1_data.groupby('Group').Creatinine.mean()
+```
+
+The `loc` property allows us to use indexing to select rows and columns. Below, we see two separate ways to use `loc`. The first uses _row, column_ notation. The _row_ section is a conditional. We want to select only the rows for the observations that are in the _Placebo_  group in the `Group` variable. The _column_ refers to the `Creatinine` variable. Finally, we calculate the mean using the `mean` method.
+
+```{python}
+project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].mean()
+```
+
+The result is the mean creatinine value for those that received a placebo. We can also use the alternative syntax examples below, where we use dot notation and then index notation.
+
+```{python}
+# Alternative syntax
+project_1_data.loc[project_1_data.Group == 'Placebo'].Creatinine.mean()
+```
+
+```{python}
+# Alternative syntax
+project_1_data.loc[project_1_data.Group == 'Placebo']['Creatinine'].mean()
+```
+
+### Measures of dispersion
+
+Measures of dispersion provide us with information about the spread of data for a continuous variable. Below, we use the `min` and the `max` methods to calculate the minimum and maximum values for the `Creatinine` variable by the levels of the `Group` variable.
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].min()
+```
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].max()
+```
+
+The range is the difference between the minimum and the maximum values of a continuous variable. We use simple subtraction below.
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].max() - project_1_data.groupby('Group')['Creatinine'].min()
+```
+
+The quartiles for a continuous variable can be caluclated using the `quatile` method of a series object. Below, we use the `groupby` method again. We pass a Python list object to the `quantile` method. These are the percentile values expressed as fractions of $1$. The $0$ will return the minumum value and the $1$ will return the maximum value. The $0.25$ returns the first quartile and the $0.75$, the third quartile value. The $0.5$ returns the second quartile or median value. Note that we can use any percentile value that may be of interest to us.
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].quantile([0, 0.25, 0.5, 0.75, 1])
+```
+
+The `iqr` function in the scipy stats module calculates the interquartile range, the difference between the first and third quartile values. We pass a numpy array of the creatinine values of those on the placebo group as argument.
+
+```{python}
+stats.iqr(
+  project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].to_numpy()
+)
+```
+
+The sample variance is the sum of squared difference between each continuous variable value, $x_{i}$, and the mean of that varaibale $\bar{\mathbf{x}}$, divided by one less than the sample size, that is $n-1$, as shown in @eq-variance.
+
+$$
+s^{2} = \frac{\left( x_{i} - \bar{\mathbf{x}} \right)^{2}}{n-1}
+$$ {#eq-variance}
+
+We use the `var` method. Since we require a sample standard deviation, we have to use the `ddof` argument and set it to $1$, indicating $n-1$. @eq-variance for the variance of a population, will only have the populations size in the denominator (no subtraction by $1$). Below, we calculate the sample standard deviation of the `Creatinine` variable for each level of the `Group` variable.
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].var(ddof=1)
+```
+
+The standard deviation is simply the square root of the variance. The `std` method can be used to calculate the sample standard deviation, as is shown for the `Creatinine` variabel as group by the levels of the `Group` variable.
+
+```{python}
+project_1_data.groupby('Group')['Creatinine'].std(ddof=1)
+```
+
+### Descriptive statistics
+
+The `describe` method returns the important sample descriptive statistics for a continuous variable. We do so for the `Creatinine` variable ,for each of the two levels of the `Group` variable.
+
+```{python}
+project_1_data.groupby('Group').Creatinine.describe()
+```
+
+### Data visualization
+
+Data visualization is an excellent form of EDA. There are many Python packages for data visualization. We see two examples using the plotly express module below.
+
+@fig-groupbarplot shows a bar plot of the level of the `Group` variable.
+
+```{python}
+#| label: fig-groupbarplot
+#| fig-cap: Bar plot of levels of treatment group
+
+express.histogram(
+  data_frame=project_1_data,
+  x='Group'
+).update_yaxes(
+  title='Frequency'
+)
+```
+
+@fig-creatininehistogrampergroup shows a stacked histogram of the `Creatinine` variable for each of the two levels of the `Group` variable.
+
+```{python}
+#| label: fig-creatininehistogrampergroup
+#| fig-cap: Histogram of serum creatinine levels for each treatment group
+express.histogram(
+  data_frame=project_1_data,
+  x='Creatinine',
+  color='Group',
+  marginal='box'
+)
+```
+
+## Comparing means of two populations
+
+There are three parametric tests for the comparison of the mean of a continuous variable between two populations. We have the equal variance _t_ test, known as Student's _t_ test, the unequal variance _t_ test, known as Welch's test, and the paired-sample _t_ test for repeated measurements or dependent samples.
+
+Bartlett's test considers equality of the variance of each population. Under the null hypothesis, we have that $\sigma^{2}_{1} - \sigma^{2}_{2} = 0$. The `bartlett` function in the scipy stats module performs this test, returning a test statistic and _p_ value. The creatinine values for each treatmnent group are each passed as a numpy array.
+
+```{python}
+stats.bartlett(
+  project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].to_numpy(),
+  project_1_data.loc[project_1_data.Group == 'Treatment', 'Creatinine'].to_numpy()
+)
+```
+
+For $\alpha=0.05$, we fail to reject the null hypothesis. The variance values are equal.
+
+We need to ensure that the data are from populations in which the values are normally distributed. In this case, we can use the Shapiro-Wilk test, with a null hypothesis that the data are from a normal distribition. We use the `shapiro` function from the scipy stats module. The creatinine values for each group are passed as argument to the function as numpy array objects.
+
+```{python}
+stats.shapiro(
+  project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].to_numpy()
+)
+```
+
+```{python}
+stats.shapiro(
+  project_1_data.loc[project_1_data.Group == 'Treatment', 'Creatinine'].to_numpy()
+)
+```
+
+For $\alpha=0.05$, we fail to reject the null hypothesis in both cases.
+
+In this case, we will use Student's _t_ test. The test statistic, $t_{\text{data}}$ and the degrees of freedom, $\nu$ is shown in @eq-student, assuming a null hypothesis where $\mu_{1} - \mu_{2} = 0$. We have that $n_{1}$ and $n_{2}$ are the sample sizes, and $\bar{X}_{1}$ and $\bar{X}_{2}$ are the two means uder consideration.
+
+$$
+\begin{align}
+&t_{\text{data}} = \frac{(\overline{X}_{1} - \overline{X}_{2}) - (\mu_{1} - \mu_{2})}{\sqrt{\frac{(n_{1} - 1) S_{1}^{2} + (n_{2} - 1) S_{2}^{2}}{n_{1} + n_{2} - 2}} \sqrt{\frac{1}{n_{1}} + \frac{1}{n_{2}}}} \sim t_{\nu} \\ \\ 
+&\nu = n_{1} + n_{2} - 2
+\end{align}
+$$ {#eq-student}
+
+The two sets of creatinine values are passed as numpy array objects to the `ttest_ind` function of the scipy stats module. We use a two-sided alternative hypothesis. The default value of the `alternative` argument is `'two-sided'`.
+
+```{python}
+stats.ttest_ind(
+  project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].to_numpy(),
+  project_1_data.loc[project_1_data.Group == 'Treatment', 'Creatinine'].to_numpy(),
+  alternative='two-sided'
+)
+```
+
+The function returns a $t_{\text{data}}$ statistic and a _p_ value. We note that there is not enough evidence at the $5\%$ level of significance to show that there is a difference in the serum creatinine levels of the two populations.
+
+To use a critical value approach for this two-sided alternative hypothesis, we require the critical value for a _t_ distribution, in this case with $\nu = n_{1} + n_{2} - 2 =  39 + 41 - 2 = 78$ degrees of freedom. For $\alpha=0.05$, we require a value for a rejection region in the upper tail, comprising half of $0.05$, which is $0.975$. We use the `t.ppf` function from the stats module.
+
+```{python}
+stats.t.ppf(
+  0.975,
+  df=placebo_n + treatment_n - 2
+)
+```
+
+We fail to reject the null hypothesis since $\lvert t_{\text{data}} \rvert \le t_{\text{crit}}$.
+
+The _p_ value can be calculated using the `cdf` method. We have to multiply the results by $2$, since we have a two-sided alternative hypothesis and the order of subtraction of the two means, would reflect symmetrically around the mean of the _t_ distribution, which is $0$. We subtract the value from the cumulative distribution function from $1$, since we want to calculate the area in the upper tail of the distribution. We use the `t` function to specify the degrees of freedom.
+
+```{python}
+2 * (1 - stats.t(placebo_n + treatment_n - 2).cdf(0.6596872652900193))
+```
+
+We have to take a look at one-sided alternative hypotheses as well. In the case of our simulated research data, we might have that $\mu_{1} - \mu_{2} > 0$. In this case we would have a different critical value. The region of rejection in the upper tail for $\alpha=0.05$ would have a region of non-rejection of $0.95$. We calculate the critical value with the `t.ppf` function again.
+
+```{python}
+stats.t.ppf(
+  0.95,
+  df=placebo_n + treatment_n - 2
+)
+```
+
+The $t_{\text{data}}$ value is still not larger than the critical value, and we still fail to reject the null hypothesis. The `alternative` argument in the `ttest_ind` function is simply set to `'greater'` in this case. We must take note of the order in which the data for the two populations are passed. Since we have that $\mu_{1}$ is the creatinine level in the population receiving the placebo, this array of values is passed first.
+
+```{python}
+stats.ttest_ind(
+  project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].to_numpy(),
+  project_1_data.loc[project_1_data.Group == 'Treatment', 'Creatinine'].to_numpy(),
+  alternative='greater'
+)
+```
+
+As before, we can calculate the _p_ value using the `cdf` method. Note that we have a one-sided alternative hypothesis and do not multiply the result by $2$.
+
+```{python}
+1 - stats.t(placebo_n + treatment_n - 2).cdf(0.6596872652900193)
+```
+
+In the case of an unqueal variance _t_ test, or Welch's test, we simply state the value `False` for the `equal_var` argument. The $t_{\text{data}}$ statistic and the degrees of freedom are calculated as shown in @eq-welch, where $S_{1}^{2}$ and $S_{2}^{2}$ are the respective variances of the two groups.
+
+$$
+\begin{align}
+&t_{\text{data}} = \frac{(\overline{X}_{1} - \overline{X}_{2}) - (\mu_{1} - \mu_{2})}{\sqrt{\frac{S_{1}^{2}}{n_{1}} + \frac{S_{2}^{2}}{n_{2}}}} \sim t_{\nu} \\ \\ 
+&\nu = \frac{{\left( \frac{S_{1}^{2}}{n_{1}}+ \frac{S_{2}^{2}}{n_{2}} \right)}^{2}}{\frac{{\left( \frac{S_{1}^{2}}{n_{1}} \right)}^{2}}{n_{1} -1} + \frac{{\left( \frac{S_{2}^{2}}{n_{2}} \right)}^{2}}{n_{2} - 1}}
+\end{align}
+$$ {#eq-welch}
+
+When the assumptions for the use of the two parametric tests above (Student's _t_ test and Welch's test) are not met, then we must consider a non-parametric alternative test. This is the Mann-Whitney-U test.
+
+Below, we use the `mannwhitneyu` function from the stats module of the scipy package to conduct the Mann-Whitney-U test. We pass two numpy arrays as arguments, as we did when using the `ttest_ind` function.
+
+```{python}
+stats.mannwhitneyu(
+  project_1_data.loc[project_1_data.Group == 'Placebo', 'Creatinine'].to_numpy(),
+  project_1_data.loc[project_1_data.Group == 'Treatment', 'Creatinine'].to_numpy(),
+)
+```
+
+As with the parametric test, we have that $p>\alpha$ as we fail to reject the null hypothesis at the $5\%$ level of significance.
+
+For a paired-sample _t_ test, we create a new data set. We simulate measuring the serum creatinine level before and after an intervention.
+
+```{python}
+numpy.random.seed(12)
+
+before = numpy.round(
+  numpy.random.normal(
+    loc=120,
+    scale=20,
+    size=80
+  )
+)
+
+after = numpy.round(
+  before - numpy.random.normal(
+    loc=1,
+    scale=5,
+    size=80
+  )
+)
+
+project_2_data = pandas.DataFrame(
+  {
+    'Before':before,
+    'After':after
+  }
+)
+```
+
+The $t_{\text{data}}$ statistic and the degrees of freedom, $\nu$, are shown in @eq-paired, where $\bar{d}$ is the difference between the two measurements and $n$ is the sample size.
+
+$$
+\begin{align}
+&t_{\text{data}}\frac{\overline{d}}{\frac{s_{d}}{\sqrt{n}}} \sim t_{\nu} \\ \\
+&\nu = n - 1
+\end{align}
+$$ {#eq-paired}
+
+We can consider a paired-sample _t_ test as a one-sample _t_ test where we measure the difference between the repeated measures against a difference of $0$. Below, we do a simple subtraction between the two measures of the continuous variable and use the `ttest_1samp` function. The `popmean` (difference under the null hypothesis) argument is set to $0$.
+
+```{python}
+stats.ttest_1samp(
+  project_2_data.Before - project_2_data.After,
+  popmean=0
+)
+```
+
+We can also use the `ttest_rel` function and pass the two pandas series objects as two arguments.
+
+```{python}
+stats.ttest_rel(
+  project_2_data.Before,
+  project_2_data.After
+)
+```
+
+The null hypothesis is that $\Delta=0$, where $\Delta$ is the difference in the measurememnts in the population. There is not enough evidence at the $5\%$ level of significance two show that there is a difference in the serum creatinine level before and after the intervention.
+
+Care must be taken when considering one-tailed alternative hypothesis for the paired-sample _t_ test. The order of subtraction is important.
+
+The Wilcoxon signed-rank test is the non-parametric alternative to the paired-sample _t_ test. Below, we use the `wilcoxon` function form the scipy stats module. We pass the difference between the two sets of measurements as argument.
+
+```{python}
+stats.wilcoxon(
+  project_2_data.Before - project_2_data.After
+)
+```
+
+As with the paired-sample _t_ test, we fail to reject the null hypothesis at the $\5%$ level of significance.
+
+## Categorical data analysis
+
+For categorical data type variable, we can consider the frequency and relative frequency (proportion) of the levels (classes) of the variable.
+
+Below, we generate siumulated data for a new variable for our `project_1_data` dataframe object. The disease (outcome) variable is `Improvement` with levels _No_ and _Yes_. The `Group` variable will serve as our exposure variable with levels _Placebo_  (the non-exposure) and _Treatment_ (the exposure).
+
+```{python}
+numpy.random.seed(12)
+
+improvement_placebo = numpy.random.choice(
+  ['No', 'Yes'],
+  size=placebo_n,
+  p=[0.7, 0.3]
+)
+
+improvement_treatment = numpy.random.choice(
+  ['No', 'Yes'],
+  size=treatment_n,
+  p=[0.4, 0.6]
+)
+
+project_1_data['Improvement'] = numpy.concatenate(
+  [
+    improvement_placebo,
+    improvement_treatment
+  ]
+)
+```
+
+We view the firt five observations.
+
+```{python}
+project_1_data[:5]
+```
+
+We start by considering the proportions of the levels of a single categorical variable.
+
+### One-sample _z_ test for proportions
+
+The one-sample _z_ test for proportions consider the propostion of the success level of a binary categorical variable. The `value_counts` method shows the frequency of the levels of the `Improvement` variable below.
+
+```{python}
+project_1_data.Improvement.value_counts()
+```
+
+Adding the `normalize` argument set to `True` shows the relative frequencies (proportions).
+
+```{python}
+project_1_data.Improvement.value_counts(normalize=True)
+```
+
+If _Yes_ is our successful outcome, we can consider a one-sample _z_ test for proportions. Each observation is independent and neither proportion (success or failure) is close to $0$ or then to $1$. The test statistic is calculated as shown in @eq-onesamplez, where $\hat{p}$ is the proportion of successes in our data and $p_{0}$ is the proportion of success under the null hypothesis.
+
+$$
+\begin{align}
+&z_{\text{data}} = \frac{\hat{p} - p_{0}}{\sqrt{\frac{p_{0}(1-p_{0})}{n}}} \sim \text{N} \left( 0,1^{2} \right)
+\end{align}
+$$ {#eq-onesamplez}
+
+The `proportions_ztest` function from the proportions submodule of the statsmodule package performs a one-sample _z_ test for proportions. The `count` argument is the freuqency of successes, the `nobs` argument is the sample size, and the `value` argument is the proportion of successes under the null hypothesis. We will use $p_{0} = 0.5$ under the null hypothesis for this example.
+
+```{python}
+proportions_ztest(
+  count = 42,
+  nobs = 80,
+  value = 0.5
+)
+```
+
+We see $z_{\text{data}} \approx 0.44777$. The critical value, $t_{\text{crit}}$ for $\alpha=0.05$ (two-sided alternative hypothesis) is calculated below.
+
+```{python}
+stats.norm.ppf(0.975)
+```
+
+We have that $\lvert t_{\text{data}} \rvert \ngtr t_{\text{crit}}$. There is not enough at the $5\%$ level of significance to show that the proportion of those that improved is different from a half.
+
+We can also express confidence intervals for the proportion of success. @eq-cionesampleztest shows how these are calucalted, where $c$ is the confidence coefficent for a given level of confidence.
+
+$$
+\hat{p} \pm c \sqrt{\frac{\hat{p} (1 - \hat{p})}{n}}
+$$ {#eq-cionesampleztest}
+
+For a $95\%$ confidence level, we calculate $c$ below using the `norm.ppf` function from the scipy stats module.
+
+```{python}
+c = stats.norm.ppf(0.975)
+c
+```
+
+We now use @eq-cionesampleztest to calculate the lower and the upper bounds.
+
+```{python}
+n = 42 + 38
+successes = 42 / n
+margin_of_error = c * numpy.sqrt((successes / (1 - successes)) / n)
+lower = successes - margin_of_error
+upper = successes + margin_of_error
+
+lower, upper
+```
+
+Our proportion of successes (`Improvement` = _Yes_) was $0.525$, with a $95\%$ confidence interval of $0.29-0.76$. Note how the proportion of successes under the null hypothesis, $0.5$, is within this interval, supprting the fact that we failed to reject the null hypothesis. 
+
+### $\chi^{2}$ test for proportions
+
+When we have a binary or a multi-level categorical variable, we can consider the $\chi^{2}$ test for proportions.
+
+The $\chi^{2}$ test for proportions compares the observed data (O) to the expected data (E) under the null hypothesis as shown in @eq-chisquareproportions, where $X^{2}$ is the test statistic, $k$ is the number of levels (classes) of the categorical variable, and $\nu$ is the degrees of freedom. Note that the text statistic follows the $\chi^{2}$ distribution for $\nu$ degrees of freedom.
+
+$$
+\begin{align}
+&X^{2} =  \sum_{i=1}^{k} \frac{{\left( O_{i} - E_{i} \right)}^{2}}{E_{i}} \sim \chi^{2}_{\nu} \\ \\
+&\nu = k - 1
+\end{align}
+$$ {#eq-chisquareproportions}
+
+If we use the same data as before, we have $42$ successes and $38$ failures. For a sample size of $80$, we would expect $40$ successes and $40$ failures under a null hypothesis of equal proportions.
+
+We can use the `chisquare` function in the stats module of scipy to conduct a $\chi^{2}$ test for proportions. The first argument is a Python list of observed frequencies and the second argument is a Python list of expected frequencies.
+
+```{python}
+stats.chisquare(
+  [42, 38], # Observed frequencies
+  [40, 40] # Expected frequencies
+)
+```
+
+We see $X^{2}_{\text{data}} = 0.2$ and $p > \alpha$ and we failt to reject the null hypothesis. To use a critical value decision rule, we can calculate a critical value using the `chi2.ppf` function. For $\alpha = 0.05$ we require an $X^{2}$ value for which the non-rejection region is $1-0.05=0.95$. Since we have two levels for the `Improvement` variable we have $\nu = 2-1=1$ degrees of freedom.
+
+```{python}
+stats.chi2.ppf(0.95, df=1)
+```
+
+We have that $X^{2}_{\text{data}} \ngtr X^{2}_{\text{crit}}$. There is not enough evidence at the $5\%$ level of significance to show that the proportion of successes is not a half.
+
+### Measures of association
+
+Measures of association refers to the relationship between two categorical variables. There are three such measures. They are risk difference (RD), risk ratio or relative risk (RR), and odds ratio (OR).
+
+@eq-odds shows the calculation for odds, where $p$ is the probability of success (for a binary variable).
+
+$$
+\text{odds} = \frac{p}{1-p}
+$$ {#eq-odds}
+
+@tbl-observed shows a table of two binary variables, `Exposure` with level _exposure_ $E$ and _not exposure $\bar{E}$, and `Disease` with levels _disease $D$ and _no disease_ $\bar{D}$. The $n_{ij}$ represent the joint frequencies, with the respective marginal frequencies.
+
+|           | $D$       | $\bar{D}$ | Total    |
+|:----------|:---------|:-----------|:---------|
+| $E$       | $n_{11}$ | $n_{12}$   | $n_{1+}$ |
+| $\bar{E}$ | $n_{21}$ | $n_{22}$   | $n_{2+}$ |
+| Total     | $n_{+1}$ | $n_{12}$   | $n$      |
+
+: Table of observed values {#tbl-observed}
+
+@eq-moa show the equations for the three measures of association.
+
+$$
+\begin{align}
+&\widehat{\text{RD}} = \hat{P} \left( D \, \vert \, E \right) - \hat{P} \left( D \, \vert \, \bar{E} \right) = \frac{n_{11}}{n_{1+}} - \frac{n_{21}}{n_{21}} \\ \\
+&\widehat{\text{RR}} = \frac{\hat{P} \left( D \, \vert \, E \right)}{\hat{P} \left( D \, \vert \, \bar{E} \right)} = \frac{n_{11}n_{2+}}{n_{1+}n_{21}} \\ \\
+&\widehat{\text{OR}} = \frac{n_{11} n_{22}}{n_{12} n_{21}}
+\end{align}
+$$ {#eq-moa}
+
+A contingency table is a table of observed frequencies. We use the `value_counts` methods for the `Improvement` variable, but use the `groupby` method to group by the levels of the `Group` variable.
+
+```{python}
+project_1_data.groupby('Group').Improvement.value_counts()
+```
+
+The results is a $2 \times 2$ contingency table. The `crosstab` function returns a table that is easier to interpret. The pandas series objects along the rows and then the columns are passed as arguments.
+
+```{python}
+pandas.crosstab(
+  project_1_data.Group,
+  project_1_data.Improvement
+)
+```
+
+By adding the `margins` argument and setting the value to `True`, we have that the marginal totals are displayed as well.
+
+```{python}
+pandas.crosstab(
+  project_1_data.Group,
+  project_1_data.Improvement,
+  margins=True
+)
+```
+
+One way to calculate measures of association, is to encode the levels of the two binary variable. Below, we use the `replace` method. A Python dictionary object is used, with the orginal level name as the dictionary keys, and the encoded value as the dictionary values. We select the success level and encode it as a $1$, with the failure level encoded with a $0$.
+
+```{python}
+project_1_data['Group_code'] = project_1_data.Group.replace(
+  {
+  'Placebo':0,
+  'Treatment':1
+}
+)
+
+project_1_data['Improvement_code'] = project_1_data.Improvement.replace(
+  {
+  'No':0,
+  'Yes':1
+}
+)
+```
+
+The `crosstab` function can be used with these new variables. Note that the order of the levels are reversed from that in @tbl-observed.
+
+```{python}
+pandas.crosstab(
+  project_1_data.Group_code,
+  project_1_data.Improvement_code,
+  margins=True
+)
+```
+
+We calculate the estimated risk difference in @eq-estimatedrd.
+
+$$
+\hat{P} \left( D \, \vert \, E \right) - \hat{P} \left( D \, \vert \, \bar{E} \right) = \frac{27}{41} - \frac{15}{39} \approx 0.274
+$$ {#eq-estimatedrd}
+
+The zepid package has many function pertinent to the field of epidemiology. Below, we instantiate the `RiskDifference` class using the variable `rd`. We then use the `fit` method from this class. The first argument is the dataframe object. We then use the `exposure` and `outcome` arguments two specify the two binary variables under consideration.
+
+```{python}
+rd = RiskDifference()
+
+rd.fit(
+  project_1_data,
+  exposure='Group_code',
+  outcome='Improvement_code'
+)
+
+rd.summary()
+```
+
+We see the estimated risk difference $\widehat{\text{RD}} \approx 0.274$ is the second set of rows. The function also returns the $95\%$ confidence interval for the risk difference. The calculation for the confidence intervals is shown in @eq-rdci, using the notation from @tbl-observed.
+
+$$
+\begin{align} &\text{Let } \hat{p}_{1} = \hat{P}(D \vert E) \\ &\text{Let } \hat{p}_{2} = \hat{P}(D \vert \overline{E}) \\ &\text{Let } n_{1} = n_{1+} \\ &\text{Let } n_{2} = n_{2+} \\ &\text{Let } c = \text{ confidence coefficient} \\ \\ &\left( \hat{p}_{1} - \hat{p}_{2} \right) \pm c \sqrt{\frac{\hat{p}_{1} \left( 1 - \hat{p}_{1} \right)}{n_{1}} + \frac{\hat{p}_{2} \left( 1 - \hat{p}_{2} \right)}{n_{2}}} \end{align}
+$$ {#eq-rdci}
+
+As a conclusion, we would state that the risk of improvement is about $27.4$ percentage points higher in those receiving the active intervention compared to those receiving placebo ($95\%$ CI $6.3 - 48.5$ percentage points).
+
+Under the null hypothesis, the risk difference is $0$, the risk of improvement is the same in two exposure groups. Note that $0$ is not within the condidence interval values, and we would reject the null hypothesis. We have shown that the risk of improvement is increased.
+
+The estmated risk ratio is calculated in @eq-estimatedrr.
+
+$$
+\frac{\hat{P} \left( D \, \vert \, E \right)}{\hat{P} \left( D \, \vert \, \bar{E} \right)} = \frac{27}{41} \times  \frac{39}{15} \approx 1.712
+$$ {#eq-estimatedrr}
+
+To calculate the risk ratio, we instantiate the `RiskRatio` class and follow a similar syntax as before.
+
+```{python}
+rr = RiskRatio()
+
+rr.fit(
+  project_1_data,
+  exposure='Group_code',
+  outcome='Improvement_code'
+)
+
+rr.summary()
+```
+
+The result is in the second set of rows with $\widehat{\text{RR}} \approx 1.712$. The function also returns the $95\%$ confidence interval for the risk ratio. The calculation for the confidence intervals is shown in @eq-rrci, using the notation from @tbl-observed.
+
+$$
+\log{\left( \widehat{\text{RR}} \right)} \pm c \sqrt{\frac{n_{12}}{n_{11}(n_{11} + n_{12})} + \frac{n_{22}}{n_{21} (n_{21} + n_{22})}}
+$$ {#eq-rrci}
+
+As a conclusion, we would state that the risk of improvement is $1.712$ times higher in those receiving the active intervention compared to those receiving the placebo ($95\%$ CI $1.087 - 2.696$). Alternatively, we could state that the risk of improvement is $71.2\%$ higher in those that received the active intervention compared to those that received the placebo ($95\%$ CI $8.7\% - 169.6\%$).
+
+Under the null hypothesis, the relative risk is $1$, the risk of improvement is the same in two exposure groups. Note that $1$ is not within the condidence interval and we would reject the null hypothesis. We have shown that the risk of improvement is increased.
+
+The estimated odds ratio is calculate in @eq-estimatedor
+
+$$
+\widehat{\text{OR}} = \frac{27 \times 24}{14 \times 15} \approx 3.086
+$$ {#eq-estimatedor}
+
+To calculate the risk ratio, we instantiate the `OddsRatio` class and follow a similar syntax as before.
+
+```{python}
+oddsratio = OddsRatio()
+
+oddsratio.fit(
+  project_1_data,
+  exposure='Group_code',
+  outcome='Improvement_code'
+)
+
+oddsratio.summary()
+```
+
+The result is in the second set of rows with $\widehat{\text{OR}} \approx 3.086$. The function also returns the $95\%$ confidence interval for the odds ratio. The calculation for the confidence intervals is shown in @eq-orci, using the notation from @tbl-observed.
+
+$$
+\log{\left( \widehat{OR} \right)} \pm c \sqrt{\frac{1}{n_{11}} + \frac{1}{n_{12}} + \frac{1}{n_{21}} + \frac{1}{n_{22}}}
+$$ {#eq-orci}
+
+As a conclusion, we would state that the odds of improvement is $3.086$ times higher in those receiving the active intervention compared to those receiving the placebo ($95\%$ CI $1.239 - 6.787$). Alternatively, we could state that the odds of improvement is $208.6\%$ higher in those that received the active intervention compared to those that received the plecebo ($95\%$ CI $23.9\% - 668.6\%$).
+
+Under the null hypothesis, the odds is $1$, the odds of improvement is the same in two exposure groups. Note that $1$ is not within the condidence interval and we would reject the null hypothesis. We have shown that the odds of improvement are increased.
+
+### Pearson's $\chi^{2}$ test
+
+We can express a test statistic for the difference of observed values of the relastionship between two categorical variables. Under the null hypothesis, the two variables are not associated, in other words, they are independent.
+
+From probability theory we have that if the outcomes for two experiments are $A$ and $B$, and they are independent, then @eq-independent holds.
+
+$$
+P \left( A \cap B \right) = P \left( A \right) \, P \left( B \right)
+$$ {#eq-independent}
+
+We can caluclate expected values under a null hypothesis of independence. We review the table of observed values from our previous example.
+
+```{python}
+pandas.crosstab(
+  project_1_data.Group,
+  project_1_data.Improvement,
+  margins=True
+)
+```
+
+The joint probability of those in the placebo group that showed no improvement is $\hat{P} \left( \text{ Placebo and No} \right) = \frac{24}{80}$. The propability of being in the placebo group is $\hat{P} \left( \text{Placebo} \right) = \frac{39}{80}$ and for no imporvement is $\hat{p} \left( \text{No} \right) = \frac{38}{80}$. Given indpendence, we see the calculation for the expected joint frequency of being in the placebo group and reporting no improvement, $E_{11}$, as shown in @eq-ind.
+
+$$
+\begin{align}
+&\frac{E_{11}}{80} = \frac{39}{80} \times \frac{38}{80} \\ \\
+&E_{11} = \frac{39 \times 38}{80}
+\end{align}
+$$ {#eq-ind}
+
+Note how $E_{11}$, the expected value in row $1$ column $1$, is the product of the corresponding row total and column total divided by the sample size under the null hypothesis of independence between the two variables. The pattern repeats for all the joint frequencies.
+
+We can express the difference between the observed joint frequenciies and the expected joint frequencies under the null hypothesis as shown in @eq-obsexp, where $r$ is the number of levels of the exposure variable, $c$ is the number of levels of the disease variable, and $\nu$ is the degrees of freedom.
+
+$$
+X^{2} = \sum_{i=1}^{r} \sum_{j=1}^{c} \frac{{\left( O_{ij} - E_{ij} \right)}^{2}}{E_{ij}} \sim \chi^{2}_{\nu = (r-1)(c-1)}, \text{ under } H_{0}
+$$ {#eq-obsexp}
+
+We assign the result of the `crosstab` function to a variable so that we can pass it to the `chi2_contingency` function. This function performs Pearson's $\chi^{2}$ test.
+
+```{python}
+observed = pandas.crosstab(
+  project_1_data.Group,
+  project_1_data.Improvement
+)
+```
+
+We see $X^{2} = 4.966$ with a _p_ value of $0.026$. For $\alpha=0.05$ we reject the null hypothesis that there is no assoctiation between `Group` and `Improvement`. This supports the fact that none of the confidence intervals for the three measures of association that we calculated contained the measure of association values under the null hypothesis.
+
+To use Pearson's $\chi^{2}$ test, we must have that at least $80\%$ of the expected values be $5$ or more in joint frequency. For a $2 \times 2$ table, this would mean that all the values are more than or equal to $5$. We see the expected values in the result above. All values are $5$ or more.
+
+## Linear models
+
+Linear regression allows us to understand the linear relationship between explanatory variables and a continuous outcome variable. We can also use a model to determine the value of the outcome variable, given the value(s) of the explanatory variable(s).
+
+### Simple linear regression
+
+In simple linear regression, we have a single continuous explanatory variable.
+
+Below, we import a spreadsheet file to use in this section. The `read_csv` pandas function imports a comma-separated values (CSV) file. In this case, the CSV file is in a GitHub repository online.
+
+```{python}
+bodyfat_file_url = 'https://raw.githubusercontent.com/juanklopper/TutorialData/main/bodyfat.csv'
+bodyfat = pandas.read_csv(bodyfat_file_url)
+```
+
+The `info` method returns information about our data set.
+
+```{python}
+bodyfat.info()
+```
+
+We see a list of $15$ variables and $252$ observations. There are no data missing. All values are either integers, indicated by `int64`, or values with decimal places, indicated by `float64`. This is an indication that all the variables are continuous type variables.
+
+Below, we use the `describe` method to show the summary statistics of the `Height` variable.
+
+```{python}
+bodyfat.Height.describe()
+```
+
+We do the same for the `Weight` variable.
+
+```{python}
+bodyfat.Weight.describe()
+```
+
+@fig-heightweight shows the relationship between the `Height` and `Weight` variables.
+
+```{python}
+#| label: fig-heightweight
+#| fig-cap: Scatter plot of height and weight values
+
+express.scatter(
+  data_frame=bodyfat,
+  x='Height',
+  y='Weight'
+)
+```
+
+The data visualization confirm a suspected outlier. This outlier can be removed by identifying its index and using the `drop` function. Setting the `inplace` argument to `True`, makes the change to the dataframe object permanent.
+
+```{python}
+indexHeight = bodyfat.loc[bodyfat.Height == 29.5].index
+bodyfat.drop(indexHeight , inplace=True)
+
+indexWeight = bodyfat.loc[bodyfat.Weight == 363.15].index
+bodyfat.drop(indexWeight, inplace=True)
+```
+
+With removal of the suspected outlier, we repeat the scatter plot in @fig-heightweightrepeat.
+
+```{python}
+#| label: fig-heightweightrepeat
+#| fig-cap: Scatter plot of height and weight values (after removal of outlier)
+
+express.scatter(
+  data_frame=bodyfat,
+  x='Height',
+  y='Weight'
+)
+```
+
+Pearson's correlation coefficient, $r$,is an estimate of the population correlation, $\rho$, between two continuous variables. Correlation is the linear association between two continuous variables. The correlation coefficient indicates the strength and direction of the linear relatiosnhip and is calculates as shown in @eq-pearsonr, where $x_{i}$ are the values for a variable $X$, $y_{i}$ are the values for a variable $Y$, with the sample size $n$ and the respective variable means $\bar{X}$ and $\bar{Y}$. the symbols $s_{X}$ and $s_{Y}$ indicate the standard deviations of the two variables.
+
+$$
+\begin{align} &r = \frac{1}{n-1} \sum_{i=1}^{n} \left( \frac{x_{i} - \bar{X}}{s_{X}} \right) \left( \frac{y_{i} - \bar{Y}}{s_{Y}} \right) \\ \\ &r = \frac{\sum_{i=1}^{n} \left[ (x_{i} - \bar{X})(y_{i} - \bar{Y}) \right]}{\sqrt{\sum_{i=1}^{n}{\left( x_{i} - \bar{X} \right)}^{2} \sum_{i=1}^{n} {\left( y_{i} - \bar{Y} \right)}^{2}}} \end{align}
+$$ {#eq-pearsonr}
+
+The numpy `corrcoef` function returns the correlation coefficient. We pass two pandas series objects, one for each of the variables, as arguments.
+
+```{python}
+numpy.corrcoef(
+  bodyfat.Weight,
+  bodyfat.Height
+)
+```
+
+The resultant array of values shows $r = 0.513$, a moderate positive correlation.
+
+The `pearsonr` function from the stats module of scipy return a test statistics and _p_ value for the null hypothesis that there is no correlation between the two varaibles, $\rho = 0$. The test statistic $t_{\text{data}}$ is calculated using @eq-rt.
+
+$$
+t_{\text{data}} = \frac{r - 0}{\sqrt{\frac{1 - r^{2}}{n-2}}} = r \sqrt{\frac{n-2}{1 - r^{2}}} \sim t_{\nu = n-2} \text{ under } H_{0}
+$$ {#eq-rt}
+
+```{python}
+stats.pearsonr(
+  bodyfat.Height.to_list(),
+  bodyfat.Weight.to_list()
+)
+```
+
+We have enough evidence at the $5\%$ level of significance to show that the linear relationship between `Height` and `Weight` is not $0$.
+
+If the data fail the assumptions for the use of Pearson's correlation coefficient, we can consider the non-parametric Spearman's correlation coefficient. The `spearmar` function from the scipy stats module returns the Spearman's correlation coefficeint and corresponding _p_ value under the null hypothesis that there is no correlation.
+
+```{python}
+stats.spearmanr(
+  bodyfat.Height.to_list(),
+  bodyfat.Weight.to_list()
+)
+```
+
+To create a linear model, where we use `Height` as explanatory variable and `Weight` as outcome variable, we use the `ols` function from the statsmodel package. The `formula` argument takes a string as value. The formula is in the form `'<Outcome variable> ~ <Explanatory variable>'`. The `fit` method _fits_ the data to the model. The model is assigned to the variable `weight_height_model`. We call the `summary` method on this model to see a summary.
+
+```{python}
+weight_height_model = ols(
+  formula='Weight ~ Height',
+  data = bodyfat
+).fit()
+
+weight_height_model.summary()
+```
+
+@eq-simpleanova shows the model given the coefficients from the results above.
+
+$$
+\begin{align}
+&\hat{y} = \hat{\beta}_{0} + \hat{\beta}_{1} \left( \text{age} \right) \\ \\ 
+&\hat{y} = -194.4861 + 5.2955 \left( \text{age} \right)
+\end{align}
+$$ {#eq-simpleanova}
+
+We can perform analysis of variance on the model using the `anova_lm` function from the statsmodel package.
+
+```{python}
+sm_stats.anova_lm(weight_height_model, typ=2)
+```
+
+The $F_{\text{data}}$-ratio is calculated using @eq-fratio.
+
+$$
+\begin{align}
+&F = \frac{\frac{\sum_{i=1}^{n}{\left( \hat{y}_{i} - \bar{\mathbf{y}} \right)^{2}}}{k-1}}{\frac{\sum_{i=1}^{n}{\left( y_{i} - \hat{y}_{i} \right)^{2}}}{N-k}}
+\end{align}
+$$ {#eq-fratio}
+
+To understand @eq-fratio, we will calculate all the components manually.
+
+We need to use the model to calculate the estimated outcome values. We create a pandas series object of the explanatory variable. The `add_constant` function adds a column of zeros for the intercept term. This creates a design matrix. We then use the `predict` method and pass the design matrix as argument. We assign the predicted (estimated) outcome values to a new variable `WeightPredicted` and add it to our original dataframe object.
+
+```{python}
+explanatory_data = bodyfat.Height
+explanatory_data = add_constant(explanatory_data)
+bodyfat['WeightPredicted'] = weight_height_model.predict(explanatory_data)
+```
+
+In @fig-prediction we plot the actual outcome values to the predicted outcome values, given our simple linear regression model.
+
+```{python}
+#| label: fig-prediction
+#| fig-cap: Scatter plot of weight and predicted weight
+
+express.scatter(
+  data_frame=bodyfat,
+  x='Weight',
+  y='WeightPredicted',
+  labels={
+    'WeightPredicted':'Predicted weight'
+  }
+)
+```
+
+The sum of squares due to the regression (ssr) is the sum of the squared difference between the predicted values for the outcome variable and the mean of the outcoem variable, and is calculated using @eq-ssr.
+
+$$
+\text{ssr} = \sum_{i=1}^{n} \left( \hat{y}_{i} - \bar{y} \right)^{2}
+$$ {#eq-ssr}
+
+We perform @eq-ssr as assign the result to the variable `ssr`.
+
+```{python}
+ssr = ((bodyfat.WeightPredicted - bodyfat.Weight.mean())**2).sum()
+ssr
+```
+
+The residual sum of squares (see) is the sum of the squared differences between the actual and the predicted outcome variable values (in other words the residuals), and is calculated in @eq-sse.
+
+$$
+\text{sse} = \sum_{i=1}^{n} \left( y_{i} - \hat{y}_{i} \right)^{2}
+$$ {#eq-sse}
+
+```{python}
+sse = ((bodyfat.Weight - bodyfat.WeightPredicted)**2).sum()
+sse
+```
+
+The numerator degrees of freedom is the number of parameters in the model minus $1$. In our model we only have $\hat{\beta}_{0}$ and $\hat{\beta}_{1}$ and hence $\nu_{1} = 2-1=1$. The denominator degrees of freedom is the sample size minus the number of parameters in the model, in our case $\nu_{2} = 250-2=248$.
+
+The numerator of the $F_{\text{data}}$-ratio is then ssr divided by the numerator degrees of freedom. The result is the mean squared error due to the regression (msr). The denominator of the $F_{\text{data}}$-ratio is the sse divided by the denominator degrees of freedom. The result is the mean sqaured error (mse). We calculate the $F_{\text{data}}$-ratio below.
+
+```{python}
+f_ratio = (ssr / (2 - 1)) / (sse / (250 - 2))
+f_ratio
+```
+
+The critical value for $F_{\nu_{1}=1, \, \nu_{2}=248}$ is calculated below using the `f.ppf` function from the stats module of the scipy package, using $\alpha=0.05$.
+
+```{python}
+stats.f.ppf(
+  0.95,
+  1,
+  248
+)
+```
+
+We have that $F_{\text{data}} > F_{\text{crit}}$ and we reject the null hypothesis that $\beta_{1}=0$. There is a linear relastionship between `Height` and `Weight`. Under the null hypothesis, $\beta_{1}=0$, the value of `Height` will not effect the value of `Weight`.
+
+### Multiple linear regression
+
+We can add more explanatory variables to our linear regression model. In @fig-explanatoryvars1 and @fig-explanatoryvars2 we see a scatter plot matrix of the rest of the explanatory variables in the data set.
+
+```{python}
+#| label: fig-explanatoryvars1
+#| fig-cap: Scatter plot matrix of weight, age, neck, chest, abdomen, and hip measurements
+#| warning: false
+#| message: false
+
+fig = graph_objects.Figure(
+  graph_objects.Splom(
+    dimensions=[
+      {'label': 'Weight', 'values': bodyfat.Weight},
+      {'label': 'Age', 'values': bodyfat.Age},
+      {'label': 'Neck', 'values': bodyfat.Neck},
+      {'label': 'Chest', 'values': bodyfat.Chest},
+      {'label': 'Abdomen', 'values': bodyfat.Abdomen},
+      {'label': 'Hip', 'values': bodyfat.Hip}
+    ]
+  )
+)
+
+fig.show()
+```
+
+```{python}
+#| label: fig-explanatoryvars2
+#| fig-cap: Scatter plot matrix of weight, thigh, knee, ankle, biceps, forearm measurements
+
+fig = graph_objects.Figure(
+  graph_objects.Splom(
+    dimensions=[
+      {'label': 'Weight', 'values': bodyfat.Weight},
+      {'label': 'Thigh', 'values': bodyfat.Thigh},
+      {'label': 'Knee', 'values': bodyfat.Knee},
+      {'label': 'Ankle', 'values': bodyfat.Ankle},
+      {'label': 'Biceps', 'values': bodyfat.Biceps},
+      {'label': 'Forearm', 'values': bodyfat.Forearm}
+    ]
+  )
+)
+
+fig.show()
+```
+
+From the data visualization, we see that the `age` variable does not seem linearly associated with `Weight`. We will use the other variables imaged above as explanatory variables.
+
+```{python}
+weight_height_model = ols(
+  'Weight ~ Height + Neck + Chest + Abdomen + Hip + Thigh + Knee + Ankle + Biceps + Forearm + Wrist',
+  data = bodyfat
+).fit()
+
+weight_height_model.summary()
+```
+
+The summary shows all the coefficients and an _F_ statistic (among many other results).
+
+We use the `anova_lm` function again to conduct analysis of variance on our new model.
+
+```{python}
+sm_stats.anova_lm(weight_height_model, typ=2)
+```
+
+There is a remarkable decrease in the sse with a value of $4191.692069$.
+
+We use the same procedure as before to create a design matrix to use in the `predict` method. We overwrite the value in the `WeightPredicted` column.
+
+```{python}
+explanatory_data = bodyfat[['Height', 'Neck', 'Chest', 'Abdomen', 'Hip', 'Thigh', 'Knee', 'Ankle', 'Biceps', 'Forearm', 'Wrist']]
+explanatory_data = add_constant(explanatory_data)
+bodyfat['WeightPredicted'] = weight_height_model.predict(explanatory_data)
+```
+
+@fig-predictionnew shows the relationship of the outcome variable with the new predicted values.
+
+```{python}
+#| label: fig-predictionnew
+#| fig-cap: Scatter plot of weight and predicted weight)
+
+express.scatter(
+  data_frame=bodyfat,
+  x='Weight',
+  y='WeightPredicted'
+)
+```
+
+As before, we calculate the $F_{\text{data}}$ statistic manually.
+
+```{python}
+ssr = ((bodyfat.WeightPredicted - bodyfat.Weight.mean())**2).sum()
+ssr
+```
+
+```{python}
+sse = ((bodyfat.WeightPredicted - bodyfat.Weight)**2).sum()
+sse
+```
+
+We have that $\nu_{1}=12-1=11$ and $\nu_{2}=250-12=238$.
+
+```{python}
+f_ratio = (ssr / (12 - 1)) / (sse / (250 - 12))
+f_ratio
+```
+
+This is much larger than the critical value that we calculate below.
+
+```{python}
+stats.f.ppf(
+  0.95,
+  11,
+  238
+)
+```
+
+### Analysis of variance
+
+Analysis of variance (ANOVA) follows the same calculations for the $F_{\text{data}}$- statistic that we used before. We use ANOVA to determine if there is a difference between the mean values of a continuous variable among more that two groups (formed by the levels of a categorical variable). This is in contrast to the use of _t_ tests when we only have two groups.
+
+We can view ANOVA as a linear regression model with a categorical explanatory variable. To demostrate, we import a data set containing information about stroke victims.
+
+```{python}
+stroke_file_url = 'https://raw.githubusercontent.com/juanklopper/TutorialData/main/stroke.csv'
+stroke = pandas.read_csv(stroke_file_url)
+```
+
+The `info` method returns information about the data set.
+
+```{python}
+stroke.info()
+```
+
+The `value_counts` method returns the frequencies of the levels of the `smoking_status` variable.
+
+```{python}
+stroke.smoking_status.value_counts()
+```
+
+For this example, we remove all the observations for which the level of the smoking status variable is _Unknown_. There are also missing value for the `bmi` (body mass index) variable. We delete these observations using the same indexing technique that we used before.
+
+```{python}
+indexSmoke = stroke.loc[stroke.smoking_status == 'Unknown'].index
+stroke.drop(indexSmoke, inplace=True)
+stroke.dropna(inplace=True)
+```
+
+@fig-smokingbmi shows a box-and-whisker plot of the body mass index for the three levels of the smoking status variable.
+
+```{python}
+#| label: fig-smokingbmi
+#| fig-cap: Distribution of the body mass index for each smoking group
+
+express.box(
+  data_frame=stroke,
+  x='smoking_status',
+  y='bmi'
+)
+```
+
+There are many ways to create a model that uses smoking status as explanatory variable for the body mass index of participants. Here, we encode the three levels with the values _never smoked_ $=0$, _formerly smoked_ $=1$, and _smokes_ $=2$ using the `replace` method and a dictionary. We also assign the encoded values to a new variable, `smoking_status_encoded`.
+
+```{python}
+stroke['smoking_status_encoded'] = stroke.smoking_status.replace(
+  {
+  'never smoked':0,
+  'formerly smoked':1,
+  'smokes':2
+}
+)
+```
+
+Now, we use the pandas `get_dummies` function to create dummy variables for our new variable. We specify the dataframe object and use the `column` argument to select the required variable, passed as a Python list object. 
+
+```{python}
+stroke = pandas.get_dummies(stroke, columns=['smoking_status_encoded'])
+```
+
+The first five observation of our dataframe object is shown below. We see the new dummy variables.
+
+```{python}
+stroke[:5]
+```
+
+With _never smoke_ $=0$ or `smoking_status_encoded_0` as reference level, we create a linear regression model using the dummy variables _formerly smoked_ $=1$ or `smoking_status_encoded_1` and _smokes_ $=2$ or `smoking_status_encoded_2` as explanatory variables.
+
+```{python}
+smoke_bmi_model = ols(
+  'bmi ~ smoking_status_encoded_1 + smoking_status_encoded_2',
+  data=stroke
+).fit()
+
+smoke_bmi_model.summary()
+```
+
+We write the model in @eq-anovamodel.
+
+$$
+\begin{align}
+&\hat{y}_{i} = \hat{\beta}_{0} + \hat{\beta}_{1} x_{1} + \beta_{2} x_{2} \\ \\ 
+&\text{estimated mean body mass index} = 29.9826 + \\ \\
+&\;\;\;0.7646 \text{ ( formerly smoked)} + 0.5610 \text{ (smokes)}
+\end{align}
+$$ {#eq-anovamodel}
+
+Since $x_{1}$ and $x_{2}$ can only take values $0,0$, $1,0$, and $0,1$, our model can only create three estimated mean body mass index values. We will see that these three values are the mean body mass index for each of the levels of the `smoking_status` variable.
+
+We use the `anova_lm` function to conduct analysis of variance on our model.
+
+```{python}
+sm_stats.anova_lm(smoke_bmi_model)
+```
+
+Using our model, we create a design matrix to use in the `predict` method. We assign the predicted values to a new column, `bmiPredicted`, in the dataframe object.
+
+```{python}
+explanatory_data = stroke[['smoking_status_encoded_1', 'smoking_status_encoded_2']]
+explanatory_data = add_constant(explanatory_data)
+stroke['bmiPredicted'] = smoke_bmi_model.predict(explanatory_data)
+```
+
+Now, we manually confirm the results from the `anova_lm` function and the `ols` functions.
+
+```{python}
+ssr = ((stroke.bmiPredicted - stroke.bmi.mean())**2).sum()
+ssr
+```
+
+```{python}
+sse = ((stroke.bmiPredicted - stroke.bmi)**2).sum()
+sse
+```
+
+We have that $\nu_{1}=3-1=2$ and $\nu_{2}=3426-3=3423$.
+
+```{python}
+f_ratio = (ssr / (3 - 1)) / (sse / (3426 - 3))
+f_ratio
+```
+
+Below, we calculate a critical value for $\nu_{1}=2$ and $\nu_{3423}$.
+
+```{python}
+stats.f.ppf(
+  0.95,
+  2,
+  3423
+)
+```
+
+We have that $F_{\text{data}} < F_{\text{crit}}$ and we reject the null hypothesis that all of the explanatory variables are not linearly associated with the outcome variable.
+
+We can also use the `f_oneway` function from the stats module of the scipy package to compare more than two means. The values for each group are passed as arguments. Below, we generate these using `loc` indexing and conditionals.
+
+```{python}
+stats.f_oneway(
+  stroke.loc[stroke.smoking_status == 'never smoked', 'bmi'],
+  stroke.loc[stroke.smoking_status == 'formerly smoked', 'bmi'],
+  stroke.loc[stroke.smoking_status == 'smokes', 'bmi']
+)
+```
+
+We see the same $F_{\text{data}}$ statistic and _p_ value.
+
+When the data do not meet the assumptions for the use of ANOVA, we can consider the non-parametric Krusal-Wallis test instead. The `kruskal` scipy stats module function is used in the same way as the `f_oneway` function.
+
+```{python}
+stats.kruskal(
+  stroke.loc[stroke.smoking_status == 'never smoked', 'bmi'],
+  stroke.loc[stroke.smoking_status == 'formerly smoked', 'bmi'],
+  stroke.loc[stroke.smoking_status == 'smokes', 'bmi']
+)
+```
+
+Since we have that $F_{\text{data}} < F_{\text{crit}}$ or then $p < \alpha$, we can conduct _post-hoc_ analysis.
+
+One such approach is using the Bonferroni method. We calculate pair-wise _t_ statistcic and consider an adjusted _p_ value. The Bonferroni correction of the level of significance is shown in @eq-bonferroni.
+
+$$
+\text{new } \alpha = \frac{\text{orginal }\alpha}{\text{number of pair-wise tests}}
+$$ {#eq-bonferroni}
+
+In our case, this would be $\alpha_{\text{adjusted}}=0.017$.
+
+We can use the `pairwise_test` function from the pingouin package to do pairwise analysis. The `dv` argument is the outcome variable. The `between` argument is the the multilevel categorical explanatory variable. We assign `'bonf'` to the `padjust` argument. We can, however, simply look at the uncorrected _p_ value column and use our adjusted $\alpha$ value. 
+
+```{python}
+#| message: false
+#| warning: false
+
+posthocs = pingouin.pairwise_tests(
+  dv='bmi',
+  between='smoking_status',
+  padjust='bonf',
+  data=stroke
+  )
+
+posthocs.round(3)
+```
+
+
+### Analysis of covariance
+
+Analysis of covariance adds a continuous variable to the ANOVA model in the previous section. This continuous variable is termed a covariate.
+
+We use ANCOVA in cases where we control for the main effect. In the case of our example we may suppose (unrealistically in this case, but considered for the sake of explanation) that we selected the cases based on their smoking status. We could not control for the age. The covariate is used to adjust the effect of smoking status on the outcome, which is body mass index in this case.
+
+@fig-agebmismoke shows a scatter plot of the age against the body mass index of the observations in our example data set. The markers are grouped by smoking status. A linear model (trendline) is added for each group. We note that the slopes of failrly similar.
+
+```{python}
+#| label: fig-agebmismoke
+#| fig-cap: Scatter plot of age and body mass index for every level of smoking status
+
+express.scatter(
+  data_frame=stroke,
+  x='age',
+  y='bmi',
+  color='smoking_status',
+  trendline='ols',
+  labels={
+    'age':'Age [years]',
+    'bmi':'Body mass index',
+    'smoking_status':'Smoking status'
+  }
+).update_traces(
+  marker={'opacity':0.2}
+)
+```
+
+We create a model below, assigned to the variable `smoke_age_bmi_model`, using the `ols` function. We use the `age` covariate and the two dummy variables for former smokers and those currently smoking.
+
+```{python}
+smoke_age_bmi_model = ols(
+  'bmi ~ age + smoking_status_encoded_1 + smoking_status_encoded_2',
+  data=stroke
+).fit()
+
+smoke_age_bmi_model.summary()
+```
+
+The `anova_lm` function returns the results for analysis of variance for our model.
+
+```{python}
+sm_stats.anova_lm(smoke_age_bmi_model)
+```
+
+We will calculte the $F_{\text{data}}$ statistic manually again. We start by generating a design matrix.
+
+```{python}
+explanatory_data = stroke[['age', 'smoking_status_encoded_1', 'smoking_status_encoded_2']]
+explanatory_data = add_constant(explanatory_data)
+stroke['bmiPredicted'] = smoke_age_bmi_model.predict(explanatory_data)
+```
+
+The ssr and sse are calculated below.
+
+```{python}
+ssr = ((stroke.bmiPredicted - stroke.bmi.mean())**2).sum()
+ssr
+```
+
+```{python}
+sse = ((stroke.bmiPredicted - stroke.bmi)**2).sum()
+sse
+```
+
+Finally, we have a $F_{\text{data}}$ statistic, which we compare to $F_{\text{crit}}$ statistic for $\nu_{1} = 3$ and $\nu_{2}= 3422$.
+
+```{python}
+f_ratio = (ssr / (4 - 1)) / (sse / (3426 - 4))
+f_ratio
+```
+
+```{python}
+stats.f.ppf(
+  0.95,
+  2,
+  3423
+)
+```
+
+@eq-anconvamodel shows our model.
+
+$$
+\begin{align}
+&\hat{y} = \hat{\beta}_{0} + \hat{\beta}_{1} x_{1} + \hat{\beta}_{2} x_{2} \\ \\
+&\text{estimated mean body mass index} = 28.6282 + \\ \\
+&\;\;\;0.0291 \text{ (age)}	+ 0.5182 \text{ (former smoker)} + \\ \\
+&\;\;\;0.5459 \text{ (current smoker)}
+\end{align}
+$$ {#eq-anconvamodel}
+
+Note how `age` adjusts the estimated mean body mass index in this model. We see the difference between the original body mass index values, shown in @fig-bmi, and the adjusted values in @fig-adjustedbmi.
+
+```{python}
+#| label: fig-bmi
+#| fig-cap: Body mass index
+
+express.box(
+  data_frame=stroke,
+  x='smoking_status',
+  y='bmiPredicted',
+  labels={
+    'smoking_status':'Smoking status',
+    'bmiPredicted':'Adjusted body mass index'
+  }
+)
+```
+
+```{python}
+#| label: fig-adjustedbmi
+#| fig-cap: Body mass index adjusted by covariate
+
+express.box(
+  data_frame=stroke,
+  x='smoking_status',
+  y='bmi',
+  labels={
+    'smoking_status':'Smoking status',
+    'bmi':'Body mass index'
+  }
+)
+```
+
+We have that $F_{\text{data}} > F_{\text{crit}}$ and we reject the null hypothesis that all the slopes for our model are $0$. Not all the adjusted mean body mass index values are equal.
+
+## Logistic regression
+
+A logistic regression model estimates the log odds of success of a binary outcome variable given one or more explanatory variables. If we encode the failure level of the outcome variable with $0$ and the success level with $1$, we can create a scatter plot, considering a continuous explanatory variable. @fig-scatterbinary shows `heart_disease` as the explanatory variable and `bmi` as the outcome variable. Note that the outcome variable is binary and can only take on values of $0$ and $1$ in the scatter plot
+
+```{python}
+#| label: fig-scatterbinary
+#| fig-cap: Body mass index versus presence of heart disease
+
+express.scatter(
+  data_frame=stroke,
+  x='bmi',
+  y=stroke.heart_disease.replace(
+    {
+      'No':0,
+      'Yes':1
+    }
+  ),
+  trendline='ols',
+  labels={
+    'bmi':'Body mass index',
+    'heart_disease':'Heart disease'
+  }
+)
+```
+
+The line (model) that was fitted to the data, is flat (no linear association). In other cases we might find a line (model) with more of a slope and such a line (model) extends below $0$ and above $1$. Such values are non-sensical.
+
+Instead, we can view the closed interval from $0$ to $1$ as the probability of success. In this sense, we make use of a link function. A link function links the random component (the binary variable), with the linear components. The link function in the case of a logistic regression is the logit function. The model that we create for $n$ explanatory variable is shown in @eq-logit, where $\hat{p} = P \left( Y=1 \, \vert \, x_{1},x_{2}, \ldots , x_{n} \right)$ (the probability of success given values for the explanatory variables).
+
+$$
+\log{\left( \frac{\hat{p}}{1 - \hat{p}} \right)} = \hat{\beta}_{0} + \hat{\beta}_{1} x_{1} + \ldots + \hat{\beta}_{n} x_{n}
+$$ {#eq-logit}
+
+The left-hand side of @eq-logit is the log odds of success. Through simple algebra, we can a function $\hat{p} \left( \hat{\beta}_{0},\hat{\beta}_{1}, \ldots , \hat{\beta}_{n} \right)$, shown in @eq-sigmoid.
+
+$$
+\hat{p} \left( \hat{\beta}_{0},\hat{\beta}_{1}, \ldots , \hat{\beta}_{n} \right) = \frac{e^{\hat{\beta}_{0} + \hat{\beta}_{1} x_{1} + \ldots + \hat{\beta}_{n} x_{n}}}{1 + e^{e^{\hat{\beta}_{0} + \hat{\beta}_{1} x_{1} + \ldots + \hat{\beta}_{n} x_{n}}}}
+$$ {#eq-sigmoid}
+
+In the example for this section, we consider the binary outcome variable `heart_disease`. We see the frequency of the two levels of this variable below.
+
+```{python}
+stroke.heart_disease.value_counts()
+```
+
+@fig-heartdiseasebmi shows the distribution of body mass index between those with and without heart disease.  We add a new column to the dataframe object and encode $0$ as _No_ and $1$ as _Yes_ for the two levels of the `heart_disease` variable, using the `replace` method and a Python dictionary object.
+
+```{python}
+#| label: fig-heartdiseasebmi
+#| fig-cap: Distribution of body mass index for those with and without heart disease
+
+stroke['heart_disease_class'] = stroke.heart_disease.replace(
+  {
+  0:'No',
+  1:'Yes'
+}
+)
+
+express.box(
+  data_frame=stroke,
+  x='heart_disease_class',
+  y='bmi'
+).update_layout(
+  xaxis={'title':'Heart Disease'},
+  yaxis={'title':'BMI'}
+)
+```
+
+The statsmodels `logit` function function is used to generate a logistic regression model.
+
+```{python}
+stroke['heart_disease_vals'] = stroke.heart_disease.replace(
+  {
+  'No':0,
+  'Yes':1
+}
+)
+heart_disease_bmi_model = logit(
+  formula='heart_disease_vals ~ bmi',
+  data=stroke
+).fit()
+
+heart_disease_bmi_model.summary()
+```
+
+@eq-lrmodel shows the model based on the results above, where $P \left( Y = 1 \, \vert \, \text{bmi} \right)$ is the probability of success (presence of heart disease) given a value for body mass index.
+
+$$
+\begin{align}
+&\log{\left( \frac{\hat{P} \left( Y=1 \, \vert \, x \right)}{1 - \hat{P} \left( Y=1 \, \vert \, x \right)} \right)} = \hat{\beta}_{0} + \hat{\beta}_{1} x \\ \\
+&\log{\left( \frac{\hat{P} \left( Y=1 \, \vert \, x \right)}{1 - \hat{P} \left( Y=1 \, \vert \, x \right)} \right)} = -2.7717 + 0.0007 x \\ \\
+&\hat{P} \left( Y=1 \, \vert \, x \right) = \frac{e^{ -2.7717 + 0.0007 x}}{1 + e^{ -2.7717 + 0.0007 x}}
+\end{align}
+$$ {#eq-lrmodel}
+
+We can use simple Python code to generate a table of results. We exponentiate all values as per @eq-sigmoid.
+
+```{python}
+odds_ratios = pandas.DataFrame(
+    {
+        "OR": heart_disease_bmi_model.params,
+        "Lower CI": heart_disease_bmi_model.conf_int()[0],
+        "Upper CI": heart_disease_bmi_model.conf_int()[1],
+    }
+)
+odds_ratios = numpy.exp(odds_ratios)
+
+odds_ratios
+```
+
+We can also use a categorical variable as explanatory variable. The `hypertension` variable is a binary variable. We can make use of the functionality built into the `formula` argument. The `C` below indication that `hypertension` is a categorical variable. The `Treatment` specifies the reference level, set to $0$, which is $0$ (no hypertension) in this case.
+
+```{python}
+heart_disease_hypertension_model = logit(
+  formula='heart_disease_vals ~ C(hypertension, Treatment(reference=0))',
+  data=stroke
+).fit()
+
+heart_disease_hypertension_model.summary()
+```
+
+@eq-heartdiseasehypertensionmodel shows the model.
+
+$$
+\begin{align}
+&\log{\left( \frac{\hat{P} \left( Y=1 \, \vert \, x \right)}{1 - \hat{P} \left( Y=1 \, \vert \, x \right)} \right)} = \hat{\beta}_{0} + \hat{\beta}_{1} x \\ \\
+&\log{\left( \frac{\hat{P} \left( Y=1 \, \vert \, x \right)}{1 - \hat{P} \left( Y=1 \, \vert \, x \right)} \right)} = -2.9368 + 1.0565 x \\ \\
+&\hat{P} \left( Y=1 \, \vert \, x \right) = \frac{e^{ -2.9368 + 1.0565 x}}{1 + e^{ -2.9368 + 1.0565 x}}
+\end{align}
+$$ {#eq-heartdiseasehypertensionmodel}
+
+Using this model can only calculate two values for the log odds of success, as $x$ can only take a value of $0$ (no hypertension) or $1$ (hypertension). We see print the full results below, remembering that we have to exponentiate all values according to @eq-sigmoid.
+
+```{python}
+odds_ratios = pandas.DataFrame(
+    {
+        "OR": heart_disease_hypertension_model.params,
+        "Lower CI": heart_disease_hypertension_model.conf_int()[0],
+        "Upper CI": heart_disease_hypertension_model.conf_int()[1],
+    }
+)
+odds_ratios = numpy.exp(odds_ratios)
+
+odds_ratios
+```
+
+The odds of heart disease are $2.88$ times higher comparing those with hypertension to those without hypertension ($95\%$ CI $2.07-4.0$, $p < 0.01$). The presensence of hypertension increases the odds of heart disease by $188\%$.
+
+The `smoking_status` variable has three levels. Below, we create a logistic regression model. Using the same syntax notation as before, we select those that have never smoked as the reference level.
+
+```{python}
+heart_disease_smoking_model = logit(
+  formula='heart_disease_vals ~ C(smoking_status, Treatment(reference="never smoked"))',
+  data=stroke
+).fit()
+
+heart_disease_smoking_model.summary()
+```
+
+@eq-heartdiseasesmokingmodel shows the model for the summary results above.
+
+$$
+\begin{align}
+&\log{\left( \frac{\hat{P} \left( Y=1 \, \vert \, x_{1},x_{2} \right)}{1 - \hat{P} \left( Y=1 \, \vert \, x_{1},x_{2} \right)} \right)} = \hat{\beta}_{0} + \hat{\beta}_{1} x_{1} + \hat{\beta}_{2} x_{2} \\ \\
+&\log{\left( \frac{\hat{P} \left( Y=1 \, \vert \, x_{1},x_{2} \right)}{1 - \hat{P} \left( Y=1 \, \vert \, x_{1},x_{2} \right)} \right)} = -3.0849 + \\ \\
+&\;\;\;0.6909 x_{1} + 0.5672 x_{2} \\ \\
+&\hat{P} \left( Y=1 \, \vert \, x_{1},x_{2} \right) = \frac{e^{ -3.0849 + 0.6909 x_{1} + 0.5672 x_{2}}}{1 + e^{ -3.0849 + 0.6909 x_{1} + 0.5672 x_{2}}}
+\end{align}
+$$ {#eq-heartdiseasesmokingmodel}
+
+We cannot simply look at the results of the Wald test (the _z_ statistic and _p_ value) for each of the dummy variables. Our task remains to determine if there is an association between smoking status and heart disease. To do this, we conduct a lokelihood ratio test, comparing the model with the `smoking_status` variable to a nested model without `smoking_status`. Since `smoking_status` is the only variable in what we will term the full model, the only nested model that we can create is a model with out the intercept.
+
+```{python}
+heart_disease_intercept_model = logit(
+  formula='heart_disease_vals ~ 1',
+  data=stroke
+).fit()
+
+heart_disease_intercept_model.summary()
+```
+
+@eq-lrt shows the equaltion of the likelihood ratio statistic, $G^{2}$, where $ll$ is the log likelihood.
+
+$$
+G^{2} = -2 (\text{ll of nested model - ll of full model})
+$$ {#eq-lrt}
+
+The `llf` attribute returns the log likelihood of a model.
+
+```{python}
+G2 = -2*(
+  heart_disease_intercept_model.llf - heart_disease_smoking_model.llf
+)
+
+G2
+```
+
+The $G^{2}$ test statistic follows a $\chi^{2}$ distribution. The degrees of freedom is the difference in the number of parameters of the full model and the nested model. In this case it is $4-2=2$. The `chi2.sf` function determines the _p_ value for the $G^{2}$ statistic.
+
+```{python}
+stats.chi2.sf(G2, 2)
+```
+
+We note that $p<\alpha$ and state that there is enough evidence in the data at the $\5%$ level of significance to show that there is an association between `moking_status` and `heart_disease`. We can now consider each of the dummy variables individually.
+
+```{python}
+odds_ratios = pandas.DataFrame(
+    {
+        "OR": heart_disease_smoking_model.params,
+        "Lower CI": heart_disease_smoking_model.conf_int()[0],
+        "Upper CI": heart_disease_smoking_model.conf_int()[1],
+    }
+)
+odds_ratios = numpy.exp(odds_ratios)
+
+odds_ratios
+```
+
+The odds of heart disease is $2.0$ times higher comparing those who formely smoked compared to those who never smoked ($95\%$ CI $1.43-2.78, \, p < 0.01$). The odds of heart disease is $100\%$ higher for those who formely smoked compared to those who never smoked.
+
+The odds of heart disease is $1.76$ times higher comparing those who currently smokes compared to those who never smoked ($95\%$ CI $1.24-2.51, \, p < 0.01$). The odds of heart disease is $76\%$ higher for those who currently smokes compared to those who never smoked.
+
+## Conclusion
+
+We can conduct many useful and commonly used statistical tests and data analysis in Python. Python is the leading language for data science and it is worthwhile to take the time to learn how to use Python for biostatistic.
+
+Learning to use Python in is this setting opens the doors to more advanced analysis techniques such machine learning.
